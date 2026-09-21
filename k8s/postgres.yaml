@@ -1,0 +1,54 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: umami-db
+  namespace: umami
+spec:
+  instances: 2 # Number of PostgreSQL replicas
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.3
+  backup:
+    barmanObjectStore:
+      destinationPath: "s3://cnpg/umami-db/"
+      endpointURL: "http://192.168.210.30:30188"
+      s3Credentials:
+        accessKeyId:
+          name: garage-s3-creds
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: garage-s3-creds
+          key: ACCESS_SECRET_KEY
+        region:
+          name: garage-s3-creds
+          key: AWS_REGION
+  enableSuperuserAccess: true
+  managed:
+    roles:
+    - name: umami
+      superuser: true
+      login: true
+
+    - name: app
+      superuser: true
+      login: true
+
+  storage:
+    pvcTemplate:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: longhorn
+  monitoring:
+    enablePodMonitor: true
+  primaryUpdateStrategy: unsupervised
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: umami-db-daily-backup
+  namespace: umami
+spec:
+  schedule: "0 0 2 * * *" # Daily at 2:00 AM
+  cluster:
+    name: umami-db

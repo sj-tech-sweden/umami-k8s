@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: umami-valkey
+  namespace: umami
+  labels:
+    app: umami-valkey
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: umami-valkey
+  template:
+    metadata:
+      labels:
+        app: umami-valkey
+    spec:
+      containers:
+      - name: valkey
+        image: valkey/valkey:9.2-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        env:
+        - name: VALKEY_MODE
+          value: "standalone"
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        readinessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        volumeMounts:
+        - name: valkey-data
+          mountPath: /data
+      volumes:
+      - name: valkey-data
+        persistentVolumeClaim:
+          claimName: umami-valkey-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: umami-valkey
+  namespace: umami
+  labels:
+    app: umami-valkey
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+    name: redis
+  selector:
+    app: umami-valkey
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: umami-valkey-data
+  namespace: umami
+spec:
+  accessModes: [ "ReadWriteOnce" ]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: longhorn
